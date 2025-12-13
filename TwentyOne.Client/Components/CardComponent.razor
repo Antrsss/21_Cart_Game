@@ -1,0 +1,108 @@
+@using TwentyOne.Shared.Models
+
+<div class="card @GetCardClass()">
+    @if (Card.IsFaceUp)
+    {
+        <div class="card-content">
+            <div class="card-rank">@GetRankSymbol()</div>
+            <div class="card-suit">@GetSuitSymbol()</div>
+        </div>
+    }
+    else
+    {
+        <div class="card-back">🂠</div>
+    }
+</div>
+
+@code {
+    [Parameter] public CardDto Card { get; set; } = new();
+
+    private string GetCardClass()
+    {
+        if (!Card.IsFaceUp) return "card-hidden";
+        
+        return Card.Suit switch
+        {
+            CardSuit.Hearts or CardSuit.Diamonds => "card-red",
+            _ => "card-black"
+        };
+    }
+
+    private string GetRankSymbol()
+    {
+        return Card.Rank switch
+        {
+            CardRank.Ace => "A",
+            CardRank.Jack => "J",
+            CardRank.Queen => "Q",
+            CardRank.King => "K",
+            _ => ((int)Card.Rank).ToString()
+        };
+    }
+
+    private string GetSuitSymbol()
+    {
+        return Card.Suit switch
+        {
+            CardSuit.Hearts => "♥",
+            CardSuit.Diamonds => "♦",
+            CardSuit.Clubs => "♣",
+            CardSuit.Spades => "♠",
+            _ => ""
+        };
+    }
+}
+
+<style>
+    .card {
+        width: 80px;
+        height: 112px;
+        border: 2px solid #333;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        margin: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        font-weight: bold;
+        position: relative;
+    }
+
+    .card-red {
+        color: #d32f2f;
+    }
+
+    .card-black {
+        color: #212121;
+    }
+
+    .card-hidden {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+    }
+
+    .card-back {
+        font-size: 48px;
+    }
+
+    .card-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    .card-rank {
+        font-size: 24px;
+        line-height: 1;
+    }
+
+    .card-suit {
+        font-size: 32px;
+        line-height: 1;
+    }
+</style>
+

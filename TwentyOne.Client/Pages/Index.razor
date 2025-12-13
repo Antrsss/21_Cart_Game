@@ -1,0 +1,234 @@
+@page "/"
+@using TwentyOne.Shared.Models
+@inject GameClientService GameService
+@implements IAsyncDisposable
+
+<PageTitle>Twenty One - Card Game</PageTitle>
+
+<div class="container">
+    <h1>Twenty One Card Game</h1>
+
+    @if (!GameService.IsConnected)
+    {
+        <div class="connection-section">
+            <p>Connecting to server...</p>
+            <button class="btn btn-primary" @onclick="Connect">Connect</button>
+        </div>
+    }
+    else if (CurrentGameState == null)
+    {
+        <div class="join-section">
+            <div class="form-group">
+                <label>Player Name:</label>
+                <input @bind="PlayerName" @bind:event="oninput" placeholder="Enter your name" />
+            </div>
+            <div class="form-group">
+                <label>Room ID:</label>
+                <input @bind="RoomId" @bind:event="oninput" placeholder="Enter or generate room ID" />
+                <button class="btn btn-secondary" @onclick="GenerateRoomId">Generate</button>
+            </div>
+            <button class="btn btn-primary" @onclick="JoinGame" disabled="@(string.IsNullOrWhiteSpace(PlayerName) || string.IsNullOrWhiteSpace(RoomId))">
+                Join Game
+            </button>
+        </div>
+    }
+    else
+    {
+        <GameTable GameState="CurrentGameState" CurrentPlayerName="@GameService.CurrentPlayerName" />
+    }
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="error-message">
+            @ErrorMessage
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(InfoMessage))
+    {
+        <div class="info-message">
+            @InfoMessage
+        </div>
+    }
+</div>
+
+@code {
+    private string PlayerName { get; set; } = "";
+    private string RoomId { get; set; } = "";
+    private GameStateDto? CurrentGameState { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? InfoMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to game service events
+        GameService.GameStateUpdated += OnGameStateUpdated;
+        GameService.PlayerJoined += OnPlayerJoined;
+        GameService.GameEnded += OnGameEnded;
+        GameService.ErrorReceived += OnErrorReceived;
+        GameService.PlayerTurnReceived += OnPlayerTurnReceived;
+
+        await GameService.ConnectAsync();
+    }
+
+    private async Task Connect()
+    {
+        await GameService.ConnectAsync();
+        StateHasChanged();
+    }
+
+    private void GenerateRoomId()
+    {
+        RoomId = Guid.NewGuid().ToString().Substring(0, 8).ToUpper();
+    }
+
+    private async Task JoinGame()
+    {
+        if (string.IsNullOrWhiteSpace(PlayerName) || string.IsNullOrWhiteSpace(RoomId))
+        {
+            ErrorMessage = "Please enter both player name and room ID.";
+            return;
+        }
+
+        ErrorMessage = null;
+        InfoMessage = $"Joining room {RoomId}...";
+        await GameService.JoinGameAsync(RoomId, PlayerName);
+    }
+
+    private void OnGameStateUpdated(GameStateDto state)
+    {
+        CurrentGameState = state;
+        InfoMessage = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnPlayerJoined(string playerName, PlayerPosition position)
+    {
+        InfoMessage = $"{playerName} joined as {position}";
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnGameEnded(GameStateDto state, string message)
+    {
+        CurrentGameState = state;
+        InfoMessage = $"Game ended: {message}";
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnErrorReceived(string message)
+    {
+        ErrorMessage = message;
+        InfoMessage = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnPlayerTurnReceived(string playerName)
+    {
+        InfoMessage = $"{playerName}'s turn";
+        InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        GameService.GameStateUpdated -= OnGameStateUpdated;
+        GameService.PlayerJoined -= OnPlayerJoined;
+        GameService.GameEnded -= OnGameEnded;
+        GameService.ErrorReceived -= OnErrorReceived;
+        GameService.PlayerTurnReceived -= OnPlayerTurnReceived;
+    }
+}
+
+<style>
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    h1 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 30px;
+    }
+
+    .connection-section, .join-section {
+        max-width: 500px;
+        margin: 50px auto;
+        padding: 30px;
+        background: #f5f5f5;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .form-group input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 16px;
+        box-sizing: border-box;
+    }
+
+    .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-primary {
+        background: #2196f3;
+        color: white;
+        width: 100%;
+    }
+
+    .btn-secondary {
+        background: #757575;
+        color: white;
+        margin-left: 10px;
+        padding: 10px 16px;
+    }
+
+    .error-message {
+        margin-top: 20px;
+        padding: 15px;
+        background: #ffebee;
+        color: #c62828;
+        border-radius: 4px;
+        border-left: 4px solid #c62828;
+    }
+
+    .info-message {
+        margin-top: 20px;
+        padding: 15px;
+        background: #e3f2fd;
+        color: #1565c0;
+        border-radius: 4px;
+        border-left: 4px solid #1565c0;
+    }
+</style>
+

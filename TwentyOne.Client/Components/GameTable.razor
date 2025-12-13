@@ -1,0 +1,365 @@
+@using TwentyOne.Shared.Models
+@inject GameClientService GameService
+
+<div class="game-table">
+    <div class="game-header">
+        <h2>Room: @GameState?.RoomId</h2>
+        <div class="game-status">Status: @GetStatusText()</div>
+    </div>
+
+    @if (GameState != null)
+    {
+        <!-- Dealer Section -->
+        <div class="dealer-section">
+            <h3>Dealer</h3>
+            <div class="hand">
+                @if (GameState.Dealer != null)
+                {
+                    @foreach (var card in GameState.Dealer.Hand)
+                    {
+                        <CardComponent Card="card" />
+                    }
+                }
+            </div>
+            <div class="hand-value">
+                @if (GameState.Dealer != null)
+                {
+                    <span>Value: @GameState.Dealer.HandValue</span>
+                    @if (GameState.Dealer.HasBusted)
+                    {
+                        <span class="bust">BUST!</span>
+                    }
+                    @if (GameState.Dealer.HasNatural)
+                    {
+                        <span class="natural">Natural Blackjack!</span>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Players Section -->
+        <div class="players-section">
+            <!-- Player 1 -->
+            @if (GameState.Player1 != null)
+            {
+                <div class="player-section @(IsCurrentPlayer(GameState.Player1.Position) ? "active-turn" : "")">
+                    <h3>@GameState.Player1.Name @(IsCurrentPlayer(GameState.Player1.Position) ? "(Your Turn)" : "")</h3>
+                    <div class="hand">
+                        @foreach (var card in GameState.Player1.Hand)
+                        {
+                            <CardComponent Card="card" />
+                        }
+                    </div>
+                    <div class="hand-value">
+                        <span>Value: @GameState.Player1.HandValue</span>
+                        @if (GameState.Player1.HasBusted)
+                        {
+                            <span class="bust">BUST!</span>
+                        }
+                        @if (GameState.Player1.HasNatural)
+                        {
+                            <span class="natural">Natural Blackjack!</span>
+                        }
+                    </div>
+                    @if (CanPlayerAct(GameState.Player1.Position))
+                    {
+                        <div class="player-actions">
+                            <button class="btn btn-hit" @onclick="() => Hit()" disabled="@IsActionDisabled()">Hit</button>
+                            <button class="btn btn-stand" @onclick="() => Stand()" disabled="@IsActionDisabled()">Stand</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- Player 2 -->
+            @if (GameState.Player2 != null)
+            {
+                <div class="player-section @(IsCurrentPlayer(GameState.Player2.Position) ? "active-turn" : "")">
+                    <h3>@GameState.Player2.Name @(IsCurrentPlayer(GameState.Player2.Position) ? "(Your Turn)" : "")</h3>
+                    <div class="hand">
+                        @foreach (var card in GameState.Player2.Hand)
+                        {
+                            <CardComponent Card="card" />
+                        }
+                    </div>
+                    <div class="hand-value">
+                        <span>Value: @GameState.Player2.HandValue</span>
+                        @if (GameState.Player2.HasBusted)
+                        {
+                            <span class="bust">BUST!</span>
+                        }
+                        @if (GameState.Player2.HasNatural)
+                        {
+                            <span class="natural">Natural Blackjack!</span>
+                        }
+                    </div>
+                    @if (CanPlayerAct(GameState.Player2.Position))
+                    {
+                        <div class="player-actions">
+                            <button class="btn btn-hit" @onclick="() => Hit()" disabled="@IsActionDisabled()">Hit</button>
+                            <button class="btn btn-stand" @onclick="() => Stand()" disabled="@IsActionDisabled()">Stand</button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Game Result -->
+        @if (GameState.IsGameOver && !string.IsNullOrEmpty(GameState.WinnerMessage))
+        {
+            <div class="game-result">
+                <h3>Game Over</h3>
+                <p>@GameState.WinnerMessage</p>
+                <button class="btn btn-restart" @onclick="Restart">Restart Game</button>
+            </div>
+        }
+    }
+
+    <!-- DEBUG INFO - Remove after fixing -->
+        <div style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; font-size: 12px; z-index: 1000; max-width: 300px;">
+            <strong>Debug Info:</strong><br/>
+            CurrentPlayerName: "@CurrentPlayerName"<br/>
+            Player1 Name: "@GameState?.Player1?.Name"<br/>
+            Player2 Name: "@GameState?.Player2?.Name"<br/>
+            CurrentPlayerTurn: @GameState?.CurrentPlayerTurn<br/>
+            Status: @GameState?.Status<br/>
+            IsCurrentPlayer(P1): @IsCurrentPlayer(PlayerPosition.Player1)<br/>
+            IsCurrentPlayer(P2): @IsCurrentPlayer(PlayerPosition.Player2)<br/>
+            CanPlayerAct(P1): @CanPlayerAct(PlayerPosition.Player1)<br/>
+            CanPlayerAct(P2): @CanPlayerAct(PlayerPosition.Player2)
+        </div>
+</div>
+
+@code {
+    [Parameter] public GameStateDto? GameState { get; set; }
+    [Parameter] public string? CurrentPlayerName { get; set; }
+
+    private bool IsCurrentPlayer(PlayerPosition position)
+    {
+        if (GameState == null || string.IsNullOrWhiteSpace(CurrentPlayerName)) return false;
+        
+        var currentName = CurrentPlayerName.Trim();
+        var player1Name = GameState.Player1?.Name?.Trim();
+        var player2Name = GameState.Player2?.Name?.Trim();
+        
+        return (position == PlayerPosition.Player1 && 
+                string.Equals(player1Name, currentName, StringComparison.OrdinalIgnoreCase)) ||
+               (position == PlayerPosition.Player2 && 
+                string.Equals(player2Name, currentName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool CanPlayerAct(PlayerPosition position)
+    {
+        if (GameState == null) return false;
+        if (GameState.Status != GameStatus.PlayerTurn) return false;
+        if (GameState.IsGameOver) return false;
+        
+        // Check if it's this position's turn
+        if (GameState.CurrentPlayerTurn != position) return false;
+        
+        // Check if this is the current user (with case-insensitive comparison)
+        if (CurrentPlayerName == null) return false;
+        
+        var playerName = position == PlayerPosition.Player1 
+            ? GameState.Player1?.Name?.Trim() 
+            : GameState.Player2?.Name?.Trim();
+        
+        return string.Equals(playerName, CurrentPlayerName.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetStatusText()
+    {
+        return GameState?.Status switch
+        {
+            GameStatus.WaitingForPlayers => "Waiting for players...",
+            GameStatus.Dealing => "Dealing cards...",
+            GameStatus.PlayerTurn => "Player's turn",
+            GameStatus.DealerTurn => "Dealer's turn",
+            GameStatus.Finished => "Game finished",
+            _ => "Unknown"
+        };
+    }
+
+    private bool IsActionDisabled()
+    {
+        return GameState?.Status != GameStatus.PlayerTurn || GameState?.IsGameOver == true;
+    }
+
+    private async Task Hit()
+    {
+        if (GameState != null && GameState.RoomId != null)
+        {
+            await GameService.PlayerActionAsync(GameState.RoomId, PlayerAction.Hit);
+        }
+    }
+
+    private async Task Stand()
+    {
+        if (GameState != null && GameState.RoomId != null)
+        {
+            await GameService.PlayerActionAsync(GameState.RoomId, PlayerAction.Stand);
+        }
+    }
+
+    private async Task Restart()
+    {
+        if (GameState != null && GameState.RoomId != null)
+        {
+            await GameService.RestartGameAsync(GameState.RoomId);
+        }
+    }
+}
+
+<style>
+    .game-table {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #0d7a3d;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+
+    .game-header {
+        text-align: center;
+        color: white;
+        margin-bottom: 20px;
+    }
+
+    .game-header h2 {
+        margin: 0;
+        font-size: 24px;
+    }
+
+    .game-status {
+        margin-top: 10px;
+        font-size: 16px;
+    }
+
+    .dealer-section {
+        background: rgba(255,255,255,0.1);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+
+    .dealer-section h3 {
+        color: white;
+        margin-bottom: 15px;
+    }
+
+    .players-section {
+        display: flex;
+        gap: 20px;
+        justify-content: space-around;
+        flex-wrap: wrap;
+    }
+
+    .player-section {
+        background: rgba(255,255,255,0.1);
+        padding: 20px;
+        border-radius: 8px;
+        flex: 1;
+        min-width: 300px;
+        text-align: center;
+        transition: all 0.3s;
+    }
+
+    .player-section.active-turn {
+        background: rgba(255,215,0,0.3);
+        border: 3px solid #ffd700;
+        box-shadow: 0 0 20px rgba(255,215,0,0.5);
+    }
+
+    .player-section h3 {
+        color: white;
+        margin-bottom: 15px;
+    }
+
+    .hand {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 15px 0;
+    }
+
+    .hand-value {
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+
+    .bust {
+        color: #ff4444;
+        margin-left: 10px;
+        font-size: 20px;
+    }
+
+    .natural {
+        color: #ffd700;
+        margin-left: 10px;
+        font-size: 18px;
+    }
+
+    .player-actions {
+        margin-top: 15px;
+    }
+
+    .btn {
+        padding: 12px 24px;
+        margin: 5px;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-hit {
+        background: #4caf50;
+        color: white;
+    }
+
+    .btn-stand {
+        background: #ff9800;
+        color: white;
+    }
+
+    .btn-restart {
+        background: #2196f3;
+        color: white;
+    }
+
+    .game-result {
+        margin-top: 30px;
+        padding: 20px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 8px;
+        text-align: center;
+        color: white;
+    }
+
+    .game-result h3 {
+        margin-top: 0;
+        font-size: 24px;
+    }
+
+    .game-result p {
+        font-size: 18px;
+        margin: 15px 0;
+    }
+</style>
+
