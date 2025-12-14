@@ -42,8 +42,8 @@
             <!-- Player 1 -->
             @if (GameState.Player1 != null)
             {
-                <div class="player-section @(IsCurrentPlayer(GameState.Player1.Position) ? "active-turn" : "")">
-                    <h3>@GameState.Player1.Name @(IsCurrentPlayer(GameState.Player1.Position) ? "(Your Turn)" : "")</h3>
+                <div class="player-section @(IsCurrentPlayerTurn(GameState.Player1.Position) ? "active-turn" : "")">
+                    <h3>@GameState.Player1.Name @(IsCurrentPlayerTurn(GameState.Player1.Position) ? "(Your Turn)" : "")</h3>
                     <div class="hand">
                         @foreach (var card in GameState.Player1.Hand)
                         {
@@ -74,8 +74,8 @@
             <!-- Player 2 -->
             @if (GameState.Player2 != null)
             {
-                <div class="player-section @(IsCurrentPlayer(GameState.Player2.Position) ? "active-turn" : "")">
-                    <h3>@GameState.Player2.Name @(IsCurrentPlayer(GameState.Player2.Position) ? "(Your Turn)" : "")</h3>
+                 <div class="player-section @(IsCurrentPlayerTurn(GameState.Player2.Position) ? "active-turn" : "")">
+                    <h3>@GameState.Player2.Name @(IsCurrentPlayerTurn(GameState.Player2.Position) ? "(Your Turn)" : "")</h3>
                     <div class="hand">
                         @foreach (var card in GameState.Player2.Hand)
                         {
@@ -146,6 +146,22 @@
                 string.Equals(player1Name, currentName, StringComparison.OrdinalIgnoreCase)) ||
                (position == PlayerPosition.Player2 && 
                 string.Equals(player2Name, currentName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Checks if this position is both the current user AND it's their turn.
+    /// Used for displaying "(Your Turn)" and highlighting.
+    /// </summary>
+    private bool IsCurrentPlayerTurn(PlayerPosition position)
+    {
+        if (GameState == null) return false;
+        if (GameState.Status != GameStatus.PlayerTurn) return false;
+        
+        // Must be this position's turn
+        if (GameState.CurrentPlayerTurn != position) return false;
+        
+        // Must be the current user
+        return IsCurrentPlayer(position);
     }
 
     private bool CanPlayerAct(PlayerPosition position)
