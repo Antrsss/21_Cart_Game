@@ -114,20 +114,6 @@
             </div>
         }
     }
-
-    <!-- DEBUG INFO - Remove after fixing -->
-        <div style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; font-size: 12px; z-index: 1000; max-width: 300px;">
-            <strong>Debug Info:</strong><br/>
-            CurrentPlayerName: "@CurrentPlayerName"<br/>
-            Player1 Name: "@GameState?.Player1?.Name"<br/>
-            Player2 Name: "@GameState?.Player2?.Name"<br/>
-            CurrentPlayerTurn: @GameState?.CurrentPlayerTurn<br/>
-            Status: @GameState?.Status<br/>
-            IsCurrentPlayer(P1): @IsCurrentPlayer(PlayerPosition.Player1)<br/>
-            IsCurrentPlayer(P2): @IsCurrentPlayer(PlayerPosition.Player2)<br/>
-            CanPlayerAct(P1): @CanPlayerAct(PlayerPosition.Player1)<br/>
-            CanPlayerAct(P2): @CanPlayerAct(PlayerPosition.Player2)
-        </div>
 </div>
 
 @code {
