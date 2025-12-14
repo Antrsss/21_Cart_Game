@@ -44,13 +44,11 @@ public class GameManager
 
             var (game, players) = _games[roomId];
 
-            // Check if player already exists
             if (players.ContainsKey(playerName))
             {
                 return players[playerName];
             }
 
-            // Assign position: first player is Player1, second is Player2
             PlayerPosition position;
             if (players.Count == 0)
             {
@@ -84,7 +82,6 @@ public class GameManager
             {
                 _games[roomId].Players.Remove(playerName);
                 
-                // Optionally clean up empty rooms
                 if (_games[roomId].Players.Count == 0)
                 {
                     _games.Remove(roomId);

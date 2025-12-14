@@ -3,7 +3,7 @@ using TwentyOne.Shared.Models;
 namespace TwentyOne.Server.GameLogic;
 
 /// <summary>
-/// Core game logic for Twenty One (Blackjack) card game.
+/// Core game logic for Twenty One card game.
 /// Handles deck management, card dealing, hand evaluation, and game state.
 /// </summary>
 public class TwentyOneGame
@@ -213,10 +213,8 @@ public class TwentyOneGame
             
             if (player.HasBusted)
             {
-                // Player busted, move to next player or dealer
                 AdvanceTurn();
             }
-            // If not busted, player can continue (but in this implementation, we require explicit Stand)
         }
         else if (action == PlayerAction.Stand)
         {
@@ -234,12 +232,10 @@ public class TwentyOneGame
         if (_currentPlayerTurn == PlayerPosition.Player1)
         {
             _currentPlayerTurn = PlayerPosition.Player2;
-            // Check if Player 2 has already busted
             if (_player2!.HasBusted)
             {
                 StartDealerTurn();
             }
-            // Otherwise, Player 2's turn continues
         }
         else if (_currentPlayerTurn == PlayerPosition.Player2)
         {
@@ -255,7 +251,6 @@ public class TwentyOneGame
         _status = GameStatus.DealerTurn;
         _currentPlayerTurn = null;
 
-        // Reveal dealer's hidden card
         foreach (var card in _dealer.Hand)
         {
             card.IsFaceUp = true;
@@ -268,7 +263,6 @@ public class TwentyOneGame
             DealCard(_dealer, faceUp: true);
         }
 
-        // Determine winner
         DetermineWinner();
     }
 
@@ -279,26 +273,21 @@ public class TwentyOneGame
     {
         _status = GameStatus.Finished;
 
-        // Check for naturals first
         bool player1Natural = _player1!.HasNatural && !_dealer.HasNatural;
         bool player2Natural = _player2!.HasNatural && !_dealer.HasNatural;
         bool dealerNatural = _dealer.HasNatural && (!_player1.HasNatural || !_player2.HasNatural);
 
         if (dealerNatural)
         {
-            // Dealer wins with natural
             return;
         }
 
-        // Evaluate each player against dealer
         var results = new List<(PlayerInfo player, string result)>();
 
         EvaluatePlayerResult(_player1, results);
         EvaluatePlayerResult(_player2, results);
 
-        // Build winner message
         var messages = results.Select(r => $"{r.player.Name}: {r.result}").ToList();
-        // This will be set in GameStateDto by the caller
     }
 
     /// <summary>
@@ -451,11 +440,11 @@ public class TwentyOneGame
             {
                 Suit = c.Suit,
                 Rank = c.Rank,
-                IsFaceUp = false  // Hide all cards
+                IsFaceUp = false
             }).ToList(),
-            HandValue = 0,  // Hide hand value
-            HasBusted = source.HasBusted,  // Can show if busted
-            HasNatural = false  // Hide natural status
+            HandValue = 0,
+            HasBusted = source.HasBusted,
+            HasNatural = false
         };
     }
 
