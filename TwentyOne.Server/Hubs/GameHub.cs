@@ -13,6 +13,11 @@ public class GameHub : Hub<IGameClient>
 {
     private readonly GameManager _gameManager;
 
+    // Track which connection belongs to which player
+    private static readonly Dictionary<string, string> _connectionToPlayer = new();
+    private static readonly Dictionary<string, string> _playerToConnection = new();
+    private readonly object _connectionLock = new();
+
     public GameHub(GameManager gameManager)
     {
         _gameManager = gameManager;
@@ -33,6 +38,19 @@ public class GameHub : Hub<IGameClient>
         // Add connection to SignalR group for this room
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
 
+        // Track connection -> player mapping
+        lock (_connectionLock)
+        {
+            // Remove old connection if player reconnects
+            if (_playerToConnection.ContainsKey(playerName))
+            {
+                var oldConnectionId = _playerToConnection[playerName];
+                _connectionToPlayer.Remove(oldConnectionId);
+            }
+            _connectionToPlayer[Context.ConnectionId] = playerName;
+            _playerToConnection[playerName] = Context.ConnectionId;
+        }
+
         // Add player to game
         var position = _gameManager.AddPlayerToRoom(roomId, playerName);
 
@@ -47,23 +65,46 @@ public class GameHub : Hub<IGameClient>
         // Notify all clients in the room that a player joined
         await Clients.Group(roomId).PlayerJoined(playerName, position.Value);
 
-        // Send current game state to the new player
-        var gameState = game.GetGameState(roomId);
+        // Send personalized game state to the new player
+        var gameState = game.GetGameStateForPlayer(roomId, playerName);
         await Clients.Caller.GameStateUpdated(gameState);
 
         // If both players are present, start the game
         if (game.CanStartGame())
         {
             game.StartGame();
-            var updatedState = game.GetGameState(roomId);
-            await Clients.Group(roomId).GameStateUpdated(updatedState);
+            
+            // Send personalized state to each player
+            var baseState = game.GetGameState(roomId);
+            if (baseState.Player1 != null)
+            {
+                var state1 = game.GetGameStateForPlayer(roomId, baseState.Player1.Name);
+                lock (_connectionLock)
+                {
+                    if (_playerToConnection.TryGetValue(baseState.Player1.Name, out var conn1))
+                    {
+                        Clients.Client(conn1).GameStateUpdated(state1);
+                    }
+                }
+            }
+            if (baseState.Player2 != null)
+            {
+                var state2 = game.GetGameStateForPlayer(roomId, baseState.Player2.Name);
+                lock (_connectionLock)
+                {
+                    if (_playerToConnection.TryGetValue(baseState.Player2.Name, out var conn2))
+                    {
+                        Clients.Client(conn2).GameStateUpdated(state2);
+                    }
+                }
+            }
             
             // Notify whose turn it is
-            if (updatedState.CurrentPlayerTurn.HasValue)
+            if (baseState.CurrentPlayerTurn.HasValue)
             {
-                var currentPlayer = updatedState.CurrentPlayerTurn == PlayerPosition.Player1 
-                    ? updatedState.Player1?.Name 
-                    : updatedState.Player2?.Name;
+                var currentPlayer = baseState.CurrentPlayerTurn == PlayerPosition.Player1 
+                    ? baseState.Player1?.Name 
+                    : baseState.Player2?.Name;
                 if (currentPlayer != null)
                 {
                     await Clients.Group(roomId).PlayerTurn(currentPlayer);
@@ -71,7 +112,7 @@ public class GameHub : Hub<IGameClient>
             }
         }
     }
-
+    
     /// <summary>
     /// Processes a player action (Hit or Stand) during their turn.
     /// </summary>
@@ -95,21 +136,43 @@ public class GameHub : Hub<IGameClient>
             return;
         }
 
-        // Broadcast updated game state to all clients in the room
-        var gameState = game.GetGameState(roomId);
-        await Clients.Group(roomId).GameStateUpdated(gameState);
+        // Send personalized game state to each player
+        var baseState = game.GetGameState(roomId);
+        
+        if (baseState.Player1 != null)
+        {
+            var state1 = game.GetGameStateForPlayer(roomId, baseState.Player1.Name);
+            lock (_connectionLock)
+            {
+                if (_playerToConnection.TryGetValue(baseState.Player1.Name, out var conn1))
+                {
+                    Clients.Client(conn1).GameStateUpdated(state1);
+                }
+            }
+        }
+        if (baseState.Player2 != null)
+        {
+            var state2 = game.GetGameStateForPlayer(roomId, baseState.Player2.Name);
+            lock (_connectionLock)
+            {
+                if (_playerToConnection.TryGetValue(baseState.Player2.Name, out var conn2))
+                {
+                    Clients.Client(conn2).GameStateUpdated(state2);
+                }
+            }
+        }
 
         // If game is finished, notify clients
-        if (gameState.IsGameOver)
+        if (baseState.IsGameOver)
         {
-            await Clients.Group(roomId).GameEnded(gameState, gameState.WinnerMessage ?? "Game Over");
+            await Clients.Group(roomId).GameEnded(baseState, baseState.WinnerMessage ?? "Game Over");
         }
-        else if (gameState.Status == GameStatus.PlayerTurn && gameState.CurrentPlayerTurn.HasValue)
+        else if (baseState.Status == GameStatus.PlayerTurn && baseState.CurrentPlayerTurn.HasValue)
         {
             // Notify whose turn it is
-            var currentPlayer = gameState.CurrentPlayerTurn == PlayerPosition.Player1 
-                ? gameState.Player1?.Name 
-                : gameState.Player2?.Name;
+            var currentPlayer = baseState.CurrentPlayerTurn == PlayerPosition.Player1 
+                ? baseState.Player1?.Name 
+                : baseState.Player2?.Name;
             if (currentPlayer != null)
             {
                 await Clients.Group(roomId).PlayerTurn(currentPlayer);
@@ -142,14 +205,37 @@ public class GameHub : Hub<IGameClient>
             game.StartGame();
         }
 
-        var gameState = game.GetGameState(roomId);
-        await Clients.Group(roomId).GameStateUpdated(gameState);
-
-        if (gameState.Status == GameStatus.PlayerTurn && gameState.CurrentPlayerTurn.HasValue)
+        // Send personalized state to each player
+        var baseState = game.GetGameState(roomId);
+        
+        if (baseState.Player1 != null)
         {
-            var currentPlayer = gameState.CurrentPlayerTurn == PlayerPosition.Player1 
-                ? gameState.Player1?.Name 
-                : gameState.Player2?.Name;
+            var state1 = game.GetGameStateForPlayer(roomId, baseState.Player1.Name);
+            lock (_connectionLock)
+            {
+                if (_playerToConnection.TryGetValue(baseState.Player1.Name, out var conn1))
+                {
+                    Clients.Client(conn1).GameStateUpdated(state1);
+                }
+            }
+        }
+        if (baseState.Player2 != null)
+        {
+            var state2 = game.GetGameStateForPlayer(roomId, baseState.Player2.Name);
+            lock (_connectionLock)
+            {
+                if (_playerToConnection.TryGetValue(baseState.Player2.Name, out var conn2))
+                {
+                    Clients.Client(conn2).GameStateUpdated(state2);
+                }
+            }
+        }
+
+        if (baseState.Status == GameStatus.PlayerTurn && baseState.CurrentPlayerTurn.HasValue)
+        {
+            var currentPlayer = baseState.CurrentPlayerTurn == PlayerPosition.Player1 
+                ? baseState.Player1?.Name 
+                : baseState.Player2?.Name;
             if (currentPlayer != null)
             {
                 await Clients.Group(roomId).PlayerTurn(currentPlayer);
@@ -162,8 +248,16 @@ public class GameHub : Hub<IGameClient>
     /// </summary>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // Note: In a production app, you might want to track which room each connection is in
-        // For simplicity, we'll handle cleanup through the game manager when needed
+        // Clean up connection tracking
+        lock (_connectionLock)
+        {
+            if (_connectionToPlayer.TryGetValue(Context.ConnectionId, out var playerName))
+            {
+                _connectionToPlayer.Remove(Context.ConnectionId);
+                _playerToConnection.Remove(playerName);
+            }
+        }
+        
         await base.OnDisconnectedAsync(exception);
     }
 }
