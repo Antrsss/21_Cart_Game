@@ -187,25 +187,20 @@ public class GameHub : Hub<IGameClient>
     {
         var game = _gameManager.GetOrCreateGame(roomId);
         
-        // Get players before reset
         var players = _gameManager.GetPlayersInRoom(roomId);
         
-        // Reset the game
         game.Reset();
         
-        // Re-add players to the game after reset
         foreach (var (playerName, position) in players)
         {
             game.AddPlayer(playerName, position);
         }
         
-        // Start new game if both players are still present
         if (game.CanStartGame())
         {
             game.StartGame();
         }
 
-        // Send personalized state to each player
         var baseState = game.GetGameState(roomId);
         
         if (baseState.Player1 != null)
@@ -248,7 +243,6 @@ public class GameHub : Hub<IGameClient>
     /// </summary>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // Clean up connection tracking
         lock (_connectionLock)
         {
             if (_connectionToPlayer.TryGetValue(Context.ConnectionId, out var playerName))
