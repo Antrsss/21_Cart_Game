@@ -14,4 +14,3 @@ public class GameStateDto
     public string? WinnerMessage { get; set; }
     public bool IsGameOver { get; set; }
 }
-

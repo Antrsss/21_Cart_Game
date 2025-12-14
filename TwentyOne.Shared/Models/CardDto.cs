@@ -40,4 +40,3 @@ public enum CardRank
     Queen = 12,
     King = 13
 }
-

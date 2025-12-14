@@ -11,4 +11,3 @@ public enum GameStatus
     DealerTurn,
     Finished
 }
-
